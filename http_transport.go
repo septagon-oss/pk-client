@@ -130,8 +130,23 @@ func (t *HTTPTransport[T]) do(req *http.Request, result any) error {
 	if result == nil || resp.StatusCode == http.StatusNoContent {
 		return nil
 	}
-	if err := json.NewDecoder(resp.Body).Decode(result); err != nil {
+	if err := decodeJSONBody(resp.Body, result); err != nil {
 		return fmt.Errorf("decode response: %w", err)
+	}
+	return nil
+}
+
+func decodeJSONBody(reader io.Reader, result any) error {
+	decoder := json.NewDecoder(reader)
+	if err := decoder.Decode(result); err != nil {
+		return err
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		if err == nil {
+			return fmt.Errorf("response body must contain exactly one JSON document")
+		}
+		return err
 	}
 	return nil
 }

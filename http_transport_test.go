@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -95,6 +96,26 @@ func TestHTTPTransportReturnsAPIError(t *testing.T) {
 	}
 	if apiErr.StatusCode != http.StatusTeapot {
 		t.Fatalf("status = %d", apiErr.StatusCode)
+	}
+}
+
+func TestHTTPTransportRejectsTrailingJSONDocument(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"data":{"id":"one"}} {}`))
+	}))
+	defer server.Close()
+
+	c, err := NewHTTP[map[string]string](NewHTTPConfig(server.URL, "widgets"))
+	if err != nil {
+		t.Fatalf("NewHTTP failed: %v", err)
+	}
+
+	_, err = c.GetByID(context.Background(), "one")
+	if err == nil {
+		t.Fatal("expected trailing JSON document to fail")
+	}
+	if !strings.Contains(err.Error(), "exactly one JSON document") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
