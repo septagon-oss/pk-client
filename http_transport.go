@@ -60,14 +60,18 @@ func (t *HTTPTransport[T]) Name() string {
 }
 
 func (t *HTTPTransport[T]) buildURL(parts ...string) string {
-	base := strings.TrimRight(t.config.BaseURL, "/") + "/" + strings.Trim(t.config.EntityPath, "/")
+	var b strings.Builder
+	b.WriteString(strings.TrimRight(t.config.BaseURL, "/"))
+	b.WriteByte('/')
+	b.WriteString(strings.Trim(t.config.EntityPath, "/"))
 	for _, part := range parts {
 		if strings.TrimSpace(part) == "" {
 			continue
 		}
-		base += "/" + url.PathEscape(part)
+		b.WriteByte('/')
+		b.WriteString(url.PathEscape(part))
 	}
-	return base
+	return b.String()
 }
 
 func (t *HTTPTransport[T]) newRequest(ctx context.Context, method, rawURL string, body any) (*http.Request, error) {
