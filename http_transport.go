@@ -1,5 +1,10 @@
 package client
 
+// http_transport.go owns the standard-library HTTP CRUD transport.
+//
+// ADR: ADR-0029 (file purpose declaration).
+// Convention: C-10 (shared builders return errors), C-14 (every Go file declares its purpose).
+
 import (
 	"bytes"
 	"context"
@@ -35,17 +40,15 @@ func (e *APIError) Error() string {
 }
 
 func NewHTTPTransport[T any](config *HTTPConfig) (*HTTPTransport[T], error) {
-	if config == nil {
-		return nil, fmt.Errorf("http config is required")
-	}
-	if err := config.Validate(); err != nil {
+	normalized, err := normalizeHTTPConfig(config)
+	if err != nil {
 		return nil, err
 	}
-	httpClient := config.HTTPClient
+	httpClient := normalized.HTTPClient
 	if httpClient == nil {
-		httpClient = &http.Client{Timeout: config.Timeout}
+		httpClient = &http.Client{Timeout: normalized.Timeout}
 	}
-	return &HTTPTransport[T]{httpClient: httpClient, config: config}, nil
+	return &HTTPTransport[T]{httpClient: httpClient, config: &normalized}, nil
 }
 
 func (t *HTTPTransport[T]) Type() TransportType {
@@ -77,18 +80,26 @@ func (t *HTTPTransport[T]) newRequest(ctx context.Context, method, rawURL string
 		reader = bytes.NewReader(payload)
 	}
 
+	return t.newRequestWithReader(ctx, method, rawURL, reader, body != nil, "application/json")
+}
+
+func (t *HTTPTransport[T]) newRawRequest(ctx context.Context, method, rawURL string, body []byte, contentType string) (*http.Request, error) {
+	return t.newRequestWithReader(ctx, method, rawURL, bytes.NewReader(body), true, contentType)
+}
+
+func (t *HTTPTransport[T]) newRequestWithReader(ctx context.Context, method, rawURL string, body io.Reader, hasBody bool, contentType string) (*http.Request, error) {
 	requestURL, err := t.withStaticQueryParams(rawURL)
 	if err != nil {
 		return nil, err
 	}
-	req, err := http.NewRequestWithContext(ctx, method, requestURL, reader)
+	req, err := http.NewRequestWithContext(ctx, method, requestURL, body)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", "pk-client/0.1")
-	if body != nil {
-		req.Header.Set("Content-Type", "application/json")
+	if hasBody && strings.TrimSpace(contentType) != "" {
+		req.Header.Set("Content-Type", strings.TrimSpace(contentType))
 	}
 	if t.config.APIKey != "" && req.Header.Get("Authorization") == "" {
 		req.Header.Set("Authorization", "Bearer "+t.config.APIKey)
@@ -291,7 +302,7 @@ func (t *HTTPTransport[T]) Import(ctx context.Context, data []byte, format strin
 		parsed.RawQuery = query.Encode()
 		rawURL = parsed.String()
 	}
-	req, err := t.newRequest(ctx, http.MethodPost, rawURL, json.RawMessage(data))
+	req, err := t.newRawRequest(ctx, http.MethodPost, rawURL, data, importContentType(format))
 	if err != nil {
 		return nil, err
 	}
@@ -300,6 +311,19 @@ func (t *HTTPTransport[T]) Import(ctx context.Context, data []byte, format strin
 		return nil, err
 	}
 	return &result, nil
+}
+
+func importContentType(format string) string {
+	switch strings.ToLower(strings.TrimSpace(format)) {
+	case "json":
+		return "application/json"
+	case "csv":
+		return "text/csv"
+	case "ndjson", "jsonl":
+		return "application/x-ndjson"
+	default:
+		return "application/octet-stream"
+	}
 }
 
 func (t *HTTPTransport[T]) listURL(params *ListParams) (string, error) {

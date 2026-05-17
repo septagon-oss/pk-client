@@ -1,8 +1,15 @@
 package client
 
+// http_transport_test.go validates HTTP transport request construction and
+// response handling.
+//
+// ADR: ADR-0029 (file purpose declaration).
+// Convention: C-14 (every Go file declares its purpose).
+
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -88,5 +95,72 @@ func TestHTTPTransportReturnsAPIError(t *testing.T) {
 	}
 	if apiErr.StatusCode != http.StatusTeapot {
 		t.Fatalf("status = %d", apiErr.StatusCode)
+	}
+}
+
+func TestHTTPTransportCopiesConfigAtConstruction(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("X-Mode"); got != "initial" {
+			t.Fatalf("X-Mode = %q, want initial", got)
+		}
+		if got := r.URL.Query().Get("tenant"); got != "oss" {
+			t.Fatalf("tenant query = %q, want oss", got)
+		}
+		_ = json.NewEncoder(w).Encode(ItemResponse[map[string]string]{Data: map[string]string{"id": "one"}})
+	}))
+	defer server.Close()
+
+	config := NewHTTPConfig(server.URL+"/", "/api/widgets/", WithHeader("X-Mode", "initial"), WithQueryParam("tenant", "oss"))
+	c, err := NewHTTP[map[string]string](config)
+	if err != nil {
+		t.Fatalf("NewHTTP failed: %v", err)
+	}
+	config.Headers["X-Mode"] = "mutated"
+	config.QueryParams["tenant"] = "mutated"
+
+	if _, err := c.GetByID(context.Background(), "one"); err != nil {
+		t.Fatalf("GetByID failed: %v", err)
+	}
+}
+
+func TestHTTPTransportImportSendsRawPayload(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/widgets/import" {
+			t.Fatalf("path = %s", r.URL.Path)
+		}
+		if r.URL.Query().Get("format") != "csv" {
+			t.Fatalf("format query = %q", r.URL.Query().Get("format"))
+		}
+		if got := r.Header.Get("Content-Type"); got != "text/csv" {
+			t.Fatalf("Content-Type = %q, want text/csv", got)
+		}
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("read body: %v", err)
+		}
+		if string(body) != "id,name\n1,demo\n" {
+			t.Fatalf("body = %q", string(body))
+		}
+		_ = json.NewEncoder(w).Encode(ImportResponse{Imported: 1})
+	}))
+	defer server.Close()
+
+	c, err := NewHTTP[map[string]string](NewHTTPConfig(server.URL, "api/widgets"))
+	if err != nil {
+		t.Fatalf("NewHTTP failed: %v", err)
+	}
+	result, err := c.Import(context.Background(), []byte("id,name\n1,demo\n"), "csv")
+	if err != nil {
+		t.Fatalf("Import failed: %v", err)
+	}
+	if result.Imported != 1 {
+		t.Fatalf("imported = %d, want 1", result.Imported)
+	}
+}
+
+func TestHTTPConfigValidateRejectsInvalidBaseURL(t *testing.T) {
+	_, err := NewHTTP[map[string]string](NewHTTPConfig("://bad", "widgets"))
+	if err == nil {
+		t.Fatal("expected invalid base URL to fail")
 	}
 }

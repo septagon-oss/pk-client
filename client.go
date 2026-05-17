@@ -1,4 +1,11 @@
+// Package client provides typed clients for PlatformKit-style CRUD APIs.
 package client
+
+// client.go owns the transport-neutral client facade used by OSS and
+// downstream PlatformKit applications.
+//
+// ADR: ADR-0029 (file purpose declaration).
+// Convention: C-10 (shared builders return errors), C-14 (every Go file declares its purpose).
 
 import (
 	"context"

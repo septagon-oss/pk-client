@@ -1,5 +1,11 @@
 package client
 
+// types.go owns the stable generic transport and response contracts exposed by
+// the OSS client package.
+//
+// ADR: ADR-0029 (file purpose declaration).
+// Convention: C-14 (every Go file declares its purpose).
+
 import "context"
 
 // TransportType identifies a client transport implementation.

@@ -15,5 +15,6 @@ authentication providers, telemetry, or hosted defaults.
 ## Verify
 
 ```bash
-make test
+make verify
+make staticcheck
 ```

@@ -1,5 +1,10 @@
 package client
 
+// options.go owns composable HTTP client options for typed PlatformKit clients.
+//
+// ADR: ADR-0029 (file purpose declaration).
+// Convention: C-14 (every Go file declares its purpose).
+
 import "time"
 
 type Option func(*HTTPConfig)
