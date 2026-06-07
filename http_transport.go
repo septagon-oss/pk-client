@@ -17,11 +17,28 @@ import (
 	"strings"
 )
 
+// HTTPTransport is the standard-library CRUDTransport that talks to a
+// PlatformKit HTTP API. The type parameter T is the entity type carried by
+// request and response bodies. It owns a normalized copy of its HTTPConfig, so
+// mutating the original config after construction does not affect the
+// transport. Construct one with NewHTTPTransport, or use NewHTTP to wrap one in
+// a Client.
 type HTTPTransport[T any] struct {
 	httpClient *http.Client
 	config     *HTTPConfig
 }
 
+// APIError is returned for any HTTP response with a status code of 400 or
+// higher. StatusCode holds the HTTP status code, Message and ErrorMsg carry the
+// server-supplied detail (parsed from the JSON body when present), and Body
+// holds the raw response body for callers that need the unparsed payload. The
+// transport returns it as an error value, so recover the typed form with
+// errors.As:
+//
+//	var apiErr *client.APIError
+//	if errors.As(err, &apiErr) {
+//		log.Printf("status %d: %s", apiErr.StatusCode, apiErr.Body)
+//	}
 type APIError struct {
 	StatusCode int    `json:"status_code"`
 	Message    string `json:"message"`
@@ -29,6 +46,8 @@ type APIError struct {
 	Body       []byte `json:"-"`
 }
 
+// Error implements the error interface, preferring the server-supplied error
+// message, then the message field, then the standard text for the status code.
 func (e *APIError) Error() string {
 	if e.ErrorMsg != "" {
 		return e.ErrorMsg
@@ -39,6 +58,11 @@ func (e *APIError) Error() string {
 	return http.StatusText(e.StatusCode)
 }
 
+// NewHTTPTransport builds an HTTPTransport from config. The config is
+// normalized and validated (see HTTPConfig.Normalize), and a copy is retained
+// so later mutation of the caller's config has no effect. If config.HTTPClient
+// is nil, a default *http.Client using config.Timeout is created. It returns
+// the normalization error and a nil transport when config is invalid.
 func NewHTTPTransport[T any](config *HTTPConfig) (*HTTPTransport[T], error) {
 	normalized, err := normalizeHTTPConfig(config)
 	if err != nil {
@@ -51,10 +75,14 @@ func NewHTTPTransport[T any](config *HTTPConfig) (*HTTPTransport[T], error) {
 	return &HTTPTransport[T]{httpClient: httpClient, config: &normalized}, nil
 }
 
+// Type reports the transport kind, always TransportTypeHTTP. It satisfies the
+// Transport interface.
 func (t *HTTPTransport[T]) Type() TransportType {
 	return TransportTypeHTTP
 }
 
+// Name returns the human-readable transport name, "http". It satisfies the
+// Transport interface.
 func (t *HTTPTransport[T]) Name() string {
 	return "http"
 }
@@ -179,6 +207,8 @@ func (t *HTTPTransport[T]) withStaticQueryParams(rawURL string) (string, error) 
 	return parsed.String(), nil
 }
 
+// Create issues a POST to the collection endpoint to create a single entity
+// and decodes the created item. It returns an *APIError for non-2xx responses.
 func (t *HTTPTransport[T]) Create(ctx context.Context, input *CreateInput[T]) (*ItemResponse[T], error) {
 	req, err := t.newRequest(ctx, http.MethodPost, t.buildURL(), input)
 	if err != nil {
@@ -191,6 +221,8 @@ func (t *HTTPTransport[T]) Create(ctx context.Context, input *CreateInput[T]) (*
 	return &result, nil
 }
 
+// GetByID issues a GET to the entity endpoint for id and decodes the item. It
+// returns an *APIError for non-2xx responses.
 func (t *HTTPTransport[T]) GetByID(ctx context.Context, id string) (*ItemResponse[T], error) {
 	req, err := t.newRequest(ctx, http.MethodGet, t.buildURL(id), nil)
 	if err != nil {
@@ -203,6 +235,9 @@ func (t *HTTPTransport[T]) GetByID(ctx context.Context, id string) (*ItemRespons
 	return &result, nil
 }
 
+// List issues a GET to the collection endpoint with params encoded as query
+// parameters and decodes the page of items and metadata. It returns an
+// *APIError for non-2xx responses.
 func (t *HTTPTransport[T]) List(ctx context.Context, params *ListParams) (*ListResponse[T], error) {
 	rawURL, err := t.listURL(params)
 	if err != nil {
@@ -219,6 +254,8 @@ func (t *HTTPTransport[T]) List(ctx context.Context, params *ListParams) (*ListR
 	return &result, nil
 }
 
+// Update issues a PUT to the entity endpoint for id to replace the entity and
+// decodes the updated item. It returns an *APIError for non-2xx responses.
 func (t *HTTPTransport[T]) Update(ctx context.Context, id string, input *UpdateInput[T]) (*ItemResponse[T], error) {
 	req, err := t.newRequest(ctx, http.MethodPut, t.buildURL(id), input)
 	if err != nil {
@@ -231,6 +268,9 @@ func (t *HTTPTransport[T]) Update(ctx context.Context, id string, input *UpdateI
 	return &result, nil
 }
 
+// PartialUpdate issues a PATCH to the entity endpoint for id to apply a partial
+// set of field updates and decodes the updated item. It returns an *APIError
+// for non-2xx responses.
 func (t *HTTPTransport[T]) PartialUpdate(ctx context.Context, id string, input *PartialUpdateInput) (*ItemResponse[T], error) {
 	req, err := t.newRequest(ctx, http.MethodPatch, t.buildURL(id), input)
 	if err != nil {
@@ -243,6 +283,8 @@ func (t *HTTPTransport[T]) PartialUpdate(ctx context.Context, id string, input *
 	return &result, nil
 }
 
+// Delete issues a DELETE to the entity endpoint for id. It returns an *APIError
+// for non-2xx responses.
 func (t *HTTPTransport[T]) Delete(ctx context.Context, id string) error {
 	req, err := t.newRequest(ctx, http.MethodDelete, t.buildURL(id), nil)
 	if err != nil {
@@ -251,6 +293,9 @@ func (t *HTTPTransport[T]) Delete(ctx context.Context, id string) error {
 	return t.do(req, nil)
 }
 
+// BulkCreate issues a POST to the collection's "bulk" endpoint to create many
+// entities at once and decodes the per-item outcomes. It returns an *APIError
+// for non-2xx responses.
 func (t *HTTPTransport[T]) BulkCreate(ctx context.Context, input *BulkCreateInput[T]) (*BulkResponse[T], error) {
 	req, err := t.newRequest(ctx, http.MethodPost, t.buildURL("bulk"), input)
 	if err != nil {
@@ -263,6 +308,9 @@ func (t *HTTPTransport[T]) BulkCreate(ctx context.Context, input *BulkCreateInpu
 	return &result, nil
 }
 
+// BulkUpdate issues a PUT to the collection's "bulk" endpoint to update many
+// entities at once and decodes the per-item outcomes. It returns an *APIError
+// for non-2xx responses.
 func (t *HTTPTransport[T]) BulkUpdate(ctx context.Context, input *BulkUpdateInput[T]) (*BulkResponse[T], error) {
 	req, err := t.newRequest(ctx, http.MethodPut, t.buildURL("bulk"), input)
 	if err != nil {
@@ -275,6 +323,9 @@ func (t *HTTPTransport[T]) BulkUpdate(ctx context.Context, input *BulkUpdateInpu
 	return &result, nil
 }
 
+// BulkDelete issues a DELETE to the collection's "bulk" endpoint with the
+// supplied ids in the request body. It returns an *APIError for non-2xx
+// responses.
 func (t *HTTPTransport[T]) BulkDelete(ctx context.Context, ids []string) error {
 	req, err := t.newRequest(ctx, http.MethodDelete, t.buildURL("bulk"), BulkDeleteInput{IDs: ids})
 	if err != nil {
@@ -283,6 +334,9 @@ func (t *HTTPTransport[T]) BulkDelete(ctx context.Context, ids []string) error {
 	return t.do(req, nil)
 }
 
+// Export issues a GET to the collection's "export" endpoint with params encoded
+// as query parameters and returns the raw response body unparsed. It returns an
+// *APIError for non-2xx responses.
 func (t *HTTPTransport[T]) Export(ctx context.Context, params ExportParams) ([]byte, error) {
 	rawURL, err := t.exportURL(params)
 	if err != nil {
@@ -309,6 +363,10 @@ func (t *HTTPTransport[T]) Export(ctx context.Context, params ExportParams) ([]b
 	return body, nil
 }
 
+// Import issues a POST to the collection's "import" endpoint, sending data as
+// the raw request body with a Content-Type derived from format (for example
+// "json" or "csv") and a matching format query parameter. It decodes and
+// returns the import summary, and returns an *APIError for non-2xx responses.
 func (t *HTTPTransport[T]) Import(ctx context.Context, data []byte, format string) (*ImportResponse, error) {
 	rawURL := t.buildURL("import")
 	if format != "" {

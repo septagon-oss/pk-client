@@ -179,7 +179,7 @@ func TestHTTPTransportImportSendsRawPayload(t *testing.T) {
 	}
 }
 
-func TestHTTPConfigValidateRejectsInvalidBaseURL(t *testing.T) {
+func TestHTTPConfigNormalizeRejectsInvalidBaseURL(t *testing.T) {
 	_, err := NewHTTP[map[string]string](NewHTTPConfig("://bad", "widgets"))
 	if err == nil {
 		t.Fatal("expected invalid base URL to fail")
