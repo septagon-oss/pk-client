@@ -20,15 +20,19 @@ func (m memoryTransport[T]) Name() string        { return "memory" }
 func (m memoryTransport[T]) Create(context.Context, *CreateInput[T]) (*ItemResponse[T], error) {
 	return &ItemResponse[T]{Data: m.item}, nil
 }
+
 func (m memoryTransport[T]) GetByID(context.Context, string) (*ItemResponse[T], error) {
 	return &ItemResponse[T]{Data: m.item}, nil
 }
+
 func (m memoryTransport[T]) List(context.Context, *ListParams) (*ListResponse[T], error) {
 	return &ListResponse[T]{Data: []T{m.item}}, nil
 }
+
 func (m memoryTransport[T]) Update(context.Context, string, *UpdateInput[T]) (*ItemResponse[T], error) {
 	return &ItemResponse[T]{Data: m.item}, nil
 }
+
 func (m memoryTransport[T]) PartialUpdate(context.Context, string, *PartialUpdateInput) (*ItemResponse[T], error) {
 	return &ItemResponse[T]{Data: m.item}, nil
 }
@@ -36,6 +40,7 @@ func (m memoryTransport[T]) Delete(context.Context, string) error { return nil }
 func (m memoryTransport[T]) BulkCreate(context.Context, *BulkCreateInput[T]) (*BulkResponse[T], error) {
 	return &BulkResponse[T]{Succeeded: []T{m.item}}, nil
 }
+
 func (m memoryTransport[T]) BulkUpdate(context.Context, *BulkUpdateInput[T]) (*BulkResponse[T], error) {
 	return &BulkResponse[T]{Succeeded: []T{m.item}}, nil
 }
@@ -43,6 +48,7 @@ func (m memoryTransport[T]) BulkDelete(context.Context, []string) error { return
 func (m memoryTransport[T]) Export(context.Context, ExportParams) ([]byte, error) {
 	return []byte("ok"), nil
 }
+
 func (m memoryTransport[T]) Import(context.Context, []byte, string) (*ImportResponse, error) {
 	return &ImportResponse{Imported: 1}, nil
 }
