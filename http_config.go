@@ -1,5 +1,8 @@
 package client
 
+// Implements: REQ-013.
+// Per: ADR-0028.
+// Discipline: C-14.
 // http_config.go owns normalized HTTP transport configuration for generated and
 // hand-written PlatformKit clients.
 //

@@ -1,5 +1,8 @@
 package client
 
+// Implements: REQ-013.
+// Per: ADR-0028.
+// Discipline: C-14.
 // options.go owns composable HTTP client options for typed PlatformKit clients.
 //
 // ADR: ADR-0029 (file purpose declaration).

@@ -1,5 +1,8 @@
 package client_test
 
+// Validates: REQ-013.
+// Per: ADR-0028.
+// Discipline: C-14.
 // example_test.go provides runnable godoc examples for the OSS client package.
 //
 // ADR: ADR-0029 (file purpose declaration).

@@ -1,5 +1,8 @@
 package client
 
+// Validates: REQ-013.
+// Per: ADR-0028.
+// Discipline: C-14.
 // client_test.go validates the transport-neutral client facade.
 //
 // ADR: ADR-0029 (file purpose declaration).

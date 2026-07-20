@@ -1,5 +1,8 @@
 package client
 
+// Implements: REQ-013.
+// Per: ADR-0028.
+// Discipline: C-14.
 // types.go owns the stable generic transport and response contracts exposed by
 // the OSS client package.
 //

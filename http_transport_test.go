@@ -1,5 +1,8 @@
 package client
 
+// Validates: REQ-013.
+// Per: ADR-0028.
+// Discipline: C-14.
 // http_transport_test.go validates HTTP transport request construction and
 // response handling.
 //

@@ -1,6 +1,9 @@
 // Package client provides typed clients for PlatformKit-style CRUD APIs.
 package client
 
+// Implements: REQ-013.
+// Per: ADR-0028.
+// Discipline: C-14.
 // client.go owns the transport-neutral client facade used by OSS and
 // downstream PlatformKit applications.
 //

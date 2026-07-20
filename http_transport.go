@@ -1,5 +1,8 @@
 package client
 
+// Implements: REQ-013.
+// Per: ADR-0028.
+// Discipline: C-14.
 // http_transport.go owns the standard-library HTTP CRUD transport.
 //
 // ADR: ADR-0029 (file purpose declaration).
