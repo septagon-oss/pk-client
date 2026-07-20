@@ -78,6 +78,75 @@ func TestHTTPTransportCreatePostsWrappedBody(t *testing.T) {
 	}
 }
 
+func TestHTTPTransportEntityMethodsUseCanonicalOpaqueIDPath(t *testing.T) {
+	const entityID = "folder/widget%2F\u96ea"
+	const expectedPath = "/api/widgets/id-666f6c6465722f776964676574253246e99baa"
+
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		if r.URL.Path != expectedPath {
+			t.Fatalf("path = %q, want %q", r.URL.Path, expectedPath)
+		}
+		switch r.Method {
+		case http.MethodDelete:
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			_ = json.NewEncoder(w).Encode(ItemResponse[map[string]string]{Data: map[string]string{"id": entityID}})
+		}
+	}))
+	defer server.Close()
+
+	transport, err := NewHTTPTransport[map[string]string](NewHTTPConfig(server.URL, "/api/widgets"))
+	if err != nil {
+		t.Fatalf("NewHTTPTransport failed: %v", err)
+	}
+	if _, err := transport.GetByID(context.Background(), entityID); err != nil {
+		t.Fatalf("GetByID failed: %v", err)
+	}
+	if _, err := transport.Update(context.Background(), entityID, &UpdateInput[map[string]string]{}); err != nil {
+		t.Fatalf("Update failed: %v", err)
+	}
+	if _, err := transport.PartialUpdate(context.Background(), entityID, &PartialUpdateInput{}); err != nil {
+		t.Fatalf("PartialUpdate failed: %v", err)
+	}
+	if err := transport.Delete(context.Background(), entityID); err != nil {
+		t.Fatalf("Delete failed: %v", err)
+	}
+	if requests != 4 {
+		t.Fatalf("requests = %d, want 4", requests)
+	}
+}
+
+func TestHTTPTransportEntityMethodsRejectUnrepresentableIDBeforeRequest(t *testing.T) {
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	transport, err := NewHTTPTransport[map[string]string](NewHTTPConfig(server.URL, "/api/widgets"))
+	if err != nil {
+		t.Fatalf("NewHTTPTransport failed: %v", err)
+	}
+	if _, err := transport.GetByID(context.Background(), ""); err == nil {
+		t.Fatal("expected empty ID to fail")
+	}
+	if _, err := transport.Update(context.Background(), "bad\x00id", &UpdateInput[map[string]string]{}); err == nil {
+		t.Fatal("expected NUL-containing ID to fail")
+	}
+	if _, err := transport.PartialUpdate(context.Background(), strings.Repeat("x", 1025), &PartialUpdateInput{}); err == nil {
+		t.Fatal("expected oversized ID to fail")
+	}
+	if err := transport.Delete(context.Background(), ""); err == nil {
+		t.Fatal("expected empty ID to fail")
+	}
+	if requests != 0 {
+		t.Fatalf("requests = %d, want 0", requests)
+	}
+}
+
 func TestHTTPTransportReturnsAPIError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"message":"nope"}`, http.StatusTeapot)

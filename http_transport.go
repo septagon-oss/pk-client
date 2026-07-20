@@ -18,6 +18,8 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+
+	"github.com/septagon-oss/pk-shared/pkg/pathsegment"
 )
 
 // HTTPTransport is the standard-library CRUDTransport that talks to a
@@ -103,6 +105,14 @@ func (t *HTTPTransport[T]) buildURL(parts ...string) string {
 		b.WriteString(url.PathEscape(part))
 	}
 	return b.String()
+}
+
+func (t *HTTPTransport[T]) buildEntityURL(id string) (string, error) {
+	segment, ok := pathsegment.EncodeOpaqueID(id)
+	if !ok {
+		return "", fmt.Errorf("entity ID cannot be represented as a canonical opaque path segment")
+	}
+	return t.buildURL(segment), nil
 }
 
 func (t *HTTPTransport[T]) newRequest(ctx context.Context, method, rawURL string, body any) (*http.Request, error) {
@@ -227,7 +237,11 @@ func (t *HTTPTransport[T]) Create(ctx context.Context, input *CreateInput[T]) (*
 // GetByID issues a GET to the entity endpoint for id and decodes the item. It
 // returns an *APIError for non-2xx responses.
 func (t *HTTPTransport[T]) GetByID(ctx context.Context, id string) (*ItemResponse[T], error) {
-	req, err := t.newRequest(ctx, http.MethodGet, t.buildURL(id), nil)
+	rawURL, err := t.buildEntityURL(id)
+	if err != nil {
+		return nil, err
+	}
+	req, err := t.newRequest(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -260,7 +274,11 @@ func (t *HTTPTransport[T]) List(ctx context.Context, params *ListParams) (*ListR
 // Update issues a PUT to the entity endpoint for id to replace the entity and
 // decodes the updated item. It returns an *APIError for non-2xx responses.
 func (t *HTTPTransport[T]) Update(ctx context.Context, id string, input *UpdateInput[T]) (*ItemResponse[T], error) {
-	req, err := t.newRequest(ctx, http.MethodPut, t.buildURL(id), input)
+	rawURL, err := t.buildEntityURL(id)
+	if err != nil {
+		return nil, err
+	}
+	req, err := t.newRequest(ctx, http.MethodPut, rawURL, input)
 	if err != nil {
 		return nil, err
 	}
@@ -275,7 +293,11 @@ func (t *HTTPTransport[T]) Update(ctx context.Context, id string, input *UpdateI
 // set of field updates and decodes the updated item. It returns an *APIError
 // for non-2xx responses.
 func (t *HTTPTransport[T]) PartialUpdate(ctx context.Context, id string, input *PartialUpdateInput) (*ItemResponse[T], error) {
-	req, err := t.newRequest(ctx, http.MethodPatch, t.buildURL(id), input)
+	rawURL, err := t.buildEntityURL(id)
+	if err != nil {
+		return nil, err
+	}
+	req, err := t.newRequest(ctx, http.MethodPatch, rawURL, input)
 	if err != nil {
 		return nil, err
 	}
@@ -289,7 +311,11 @@ func (t *HTTPTransport[T]) PartialUpdate(ctx context.Context, id string, input *
 // Delete issues a DELETE to the entity endpoint for id. It returns an *APIError
 // for non-2xx responses.
 func (t *HTTPTransport[T]) Delete(ctx context.Context, id string) error {
-	req, err := t.newRequest(ctx, http.MethodDelete, t.buildURL(id), nil)
+	rawURL, err := t.buildEntityURL(id)
+	if err != nil {
+		return err
+	}
+	req, err := t.newRequest(ctx, http.MethodDelete, rawURL, nil)
 	if err != nil {
 		return err
 	}
